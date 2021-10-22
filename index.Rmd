@@ -19,72 +19,158 @@ tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
 
 ## Data Wrangling, Exploration, Visualization
 
-### Name and EID here
+### Simran Shah
 
 #### Introduction 
 
-Paragraph or two introducing your datasets and variables, why they are interesting to you, etc.
-
+**The first dataset I chose reports the percent of adults that reported experiencing symptoms related to depression and anxiety, and the percent of households that have lost or have not lost a income from employment (job), for each state in the U.S.A. The second dataset explored the availability of healthcare services, by reporting the number of visits made to federally qualified clinics, number of total federal clinics present, number of virtual clinics, number of service delivery sites, and lastly the total number of visits made to a physician, for each state and U.S territory. This data was collected relative to the start of the Covid-19 pandemic, and acquired via self-report surveys, physician reporting of clinical visits, and through the Health Resources and Services Administration data reporting. I picked these two dataset to see the relationship between mental health status (symptoms of depression and anxiety) and access to healthcare services, during the Covid-19 pandemic. 
 ```{R}
 # read your datasets in here, e.g., with read_csv()
-
+CHC_sites <- read.csv("~/project1/project1/CHC_sites_csv.csv")
+MD_covid <- read.csv("~/project1/project1/MD_covid.csv")
+party_df <- read.delim("~/project1/project1/party_df", header=FALSE)
 ```
 
 #### Tidying: Reshaping
 
-If your datasets are tidy already, demonstrate that you can reshape data with pivot wider/longer here (e.g., untidy and then retidy). Alternatively, it may be easier to wait until the wrangling section so you can reshape your summary statistics. Note here if you are going to do this.
-
+**I pivoted the dataset with only information regarding number of clinical or virtual visits, vertically, by number of clinical visits reported per state. Then I re-pivoted the dataset using pivot_wider, to restore the original shape of the dataset. 
 ```{R}
-# your tidying code (if applicable; can also wait until wrangling section)
+#install.packages("tidyr") 
+library(tidyr)
+longCHC <- pivot_longer(CHC_sites, 'Clinical.Visits')
+wideCHC <- longCHC %>% tidyr::pivot_wider(values_from = value)
+head(wideCHC)
 ```
 
     
 #### Joining/Merging
 
 ```{R}
-# your joining code
-
-# your joining code
+library(tidyr)
+#received an error saying that "left_join" function could not be found so I used base are merge() instead for now
+merged_df <- left_join(MD_covid, CHC_sites, by = 'Location')
+#merged_df <- merge(MD_covid, CHC_sites, by = 'Location')
+head(merged_df)
 ```
 
-Discussions of joining here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+**I performed a left join because both dataframes shared the same identifier 'location' and I wanted to add the second dataframe horizontally to the first dataframe. The first dataframe. that reports the percents of adults who experienced depression and anxiety symptoms and th percent of adults in each state that has lost their job(s) since the start of Covid-19, contains 52 rows and 4 columns and uses the 50 states in the USA, as an identifier for each sample. The second dataframe that reports raw numbers related to health care service accessibility has 60 rows and 6 columns, with states and US territories acting as an identifier for each sample/ When the 2 dataframes merged, the US territories (Federated States of Micronesia, Guam, Marshall Islands, Northern Mariana Islands, Palau, Puerto Rico, U.S. Virgin Islands) did not overlap with the first dataframe, and were lost during the merge. Both dataframes had the states of the U.S. in common. After the merge, the merged datafram contains 52 rows and 9 columns.** 
+
 
 ####  Wrangling
-
+**The first section of code within this chunk aims to observe the relationship between the percent of adults that reported experience symptoms related to depression and anxiety and the total number of Community Health Centers (CHCs) in each state, specifically focusing of states with highest number of CHCs. The second section of code creates two new columns: the first new column converts the raw number of clinical visits into the proportion of clinical visits and the second new column bins the number of clinical visits into 2 levels based on the median value. The last couple lines of code identifies the number of NAs for each variable in the dataset. **
 ```{R}
-# your wrangling code
+#filter, select, arrange
+#Observing relationship between adults reporting depression and anxiety symptoms with the 75th quantile for the number of total community health centers, in each state. 
+merged_df %>% mutate(Total.CHCs = as.numeric(Total.CHCs)) %>% mutate(All.Adults = as.numeric(All.Adults)) %>%  filter(Total.CHCs > quantile(Total.CHCs, 0.75)) %>% arrange(desc(Total.CHCs)) %>% select(All.Adults, Total.CHCs) 
 
-# your wrangling code
+#For mutate, create a  new variable that is a function of at least one other variable, preferably using a dplyr vector function (see dplyr cheatsheet).
+wrangled_dataframe <- merged_df %>% mutate(Clinical.Visits = str_replace_all(Clinical.Visits, ",", "") ,Clinical.Visits = as.numeric(Clinical.Visits), prop_clinicalVisits = Clinical.Visits / 85678538, lowHigh_clinVisits = ifelse(Clinical.Visits > median(Clinical.Visits), 'High', 'Low' ), lowHigh_lossIncome = ifelse(Household.Job.Loss.Since.March.2020 > median(Household.Job.Loss.Since.March.2020), 'High', 'Low' ))
 
-# your wrangling code
+#Number of missing values (NAs) for each variable.
+NA_wrangled <- wrangled_dataframe %>% summarise(across(everything(), ~ sum(is.na(.x))))
+
+#outputs
+wrangled_dataframe
+NA_wrangled
 ```
 
-Your discussion of wrangling section here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+####  Wrangling pt 2
+**The following chunk of code finds the mean, standard error, correlation between each variable and the percent of adults who reported experiencing depression and anxiety symptoms, maximum and minimum values for all numerical variables present in the data set. In addition, these statistical values were calculated when grouped by high/low number of clinical visits. The most interesting metric calculated was the correlation, which indicates the strength of a relationship between these numeric variables and the percent of adults experiencing depression and anxiety symptoms. The correlation values show that households that experienced job loss are strongly correlated with experiencing symptoms (correlation of 0.72). Similarly, households that did not experience job loss are also strongly, positively correlated to experiencing symptoms (correlation of 0.69). This observation may indicate that losing a job does not relate strongly to experiencing symptoms, since households who did not lose a job are also strongly correlated with experiencing symptoms. Number of virtual visits had a moderate positive correlation with the percent of adults experiencing depression and anxiety symptoms (correlation of 0.37), which may indicate a relationship between receiving health services virtually and mental health status.  **
 
+```{R}
+#Using `dplyr`, create summary statistics (`mean, sd, var, n, quantile, min, max, n_distinct, cor`, etc) for each of your numeric variables. 
+
+Corr<-function(x,y){
+1/(length(x)-1)*sum(scale(x)*scale(y)) 
+}
+
+CLinicalVisits_stats <- wrangled_dataframe %>% summarise(mean = mean(Clinical.Visits), sd = sd(Clinical.Visits), max = max(Clinical.Visits), min = min(Clinical.Visits), med = median(Clinical.Visits), corr = Corr(Clinical.Visits, All.Adults))
+
+VirtualVisits_stats <- wrangled_dataframe %>% mutate(Virtual.Visits = as.numeric(Virtual.Visits)) %>% summarise(mean = mean(Virtual.Visits), sd = sd(Virtual.Visits), max = max(Virtual.Visits), min = min(Virtual.Visits), med = median(Virtual.Visits), corr = Corr(Virtual.Visits, All.Adults)) 
+
+Adults_symptoms_stats <- wrangled_dataframe %>% mutate(All.Adults = as.numeric(All.Adults)) %>% summarise(mean = mean(All.Adults), sd = sd(All.Adults), max = max(All.Adults), min = min(All.Adults), med = median(All.Adults), corr = Corr(All.Adults, All.Adults))
+
+jobLoss_stats <- wrangled_dataframe %>% mutate(Household.Job.Loss.Since.March.2020 = as.numeric(Household.Job.Loss.Since.March.2020)) %>% summarise(mean = mean(Household.Job.Loss.Since.March.2020), sd = sd(Household.Job.Loss.Since.March.2020), max = max(Household.Job.Loss.Since.March.2020), min = min(Household.Job.Loss.Since.March.2020), med = median(Household.Job.Loss.Since.March.2020), corr = Corr(Household.Job.Loss.Since.March.2020, All.Adults))
+
+noJobloss_stats <- wrangled_dataframe %>% mutate(No.Household.Job.Loss.Since.March.2020 = as.numeric(No.Household.Job.Loss.Since.March.2020)) %>% summarise(mean = mean(No.Household.Job.Loss.Since.March.2020), sd = sd(No.Household.Job.Loss.Since.March.2020), max = max(No.Household.Job.Loss.Since.March.2020), min = min(No.Household.Job.Loss.Since.March.2020), med = median(No.Household.Job.Loss.Since.March.2020), corr = Corr(No.Household.Job.Loss.Since.March.2020, All.Adults))
+
+totalCHCs_stats <- wrangled_dataframe %>% mutate(Total.CHCs = as.numeric(Total.CHCs)) %>% summarise(mean = mean(Total.CHCs), sd = sd(Total.CHCs), max = max(Total.CHCs), min = min(Total.CHCs), med = median(Total.CHCs), corr = Corr(Total.CHCs, All.Adults))
+
+delivery_stats <- wrangled_dataframe %>% mutate(Service.Delivery.Sites = as.numeric(Service.Delivery.Sites)) %>% summarise(mean = mean(Service.Delivery.Sites), sd = sd(Service.Delivery.Sites), max = max(Service.Delivery.Sites), min = min(Service.Delivery.Sites), med = median(Service.Delivery.Sites), corr = Corr(Service.Delivery.Sites, All.Adults))
+
+totalVisits_stats <- wrangled_dataframe %>% mutate(Total.Visits = as.numeric(Total.Visits)) %>% summarise(mean = mean(Total.Visits), sd = sd(Total.Visits), max = max(Total.Visits), min = min(Total.Visits), med = median(Total.Visits), corr = Corr(Total.Visits, All.Adults))
+
+#statistics grouped by high and low number of clinical visits 
+CLinicalVisits_stats_grouped <- wrangled_dataframe %>% group_by(lowHigh_clinVisits) %>% summarise(mean = mean(Clinical.Visits), sd = sd(Clinical.Visits), max = max(Clinical.Visits), min = min(Clinical.Visits), med = median(Clinical.Visits), corr = Corr(Clinical.Visits, All.Adults)) 
+
+VirtualVisits_stats_grouped <- wrangled_dataframe %>% group_by(lowHigh_clinVisits) %>% mutate(Virtual.Visits = as.numeric(Virtual.Visits)) %>% summarise(mean = mean(Virtual.Visits), sd = sd(Virtual.Visits), max = max(Virtual.Visits), min = min(Virtual.Visits), med = median(Virtual.Visits), corr = Corr(Virtual.Visits, All.Adults)) 
+
+Adults_symptoms_stats_grouped <- wrangled_dataframe %>% group_by(lowHigh_clinVisits) %>% mutate(All.Adults = as.numeric(All.Adults)) %>% summarise(mean = mean(All.Adults), sd = sd(All.Adults), max = max(All.Adults), min = min(All.Adults), med = median(All.Adults), corr = Corr(All.Adults, All.Adults))
+
+jobLoss_stats_grouped <- wrangled_dataframe %>% group_by(lowHigh_clinVisits) %>% mutate(Household.Job.Loss.Since.March.2020 = as.numeric(Household.Job.Loss.Since.March.2020)) %>% summarise(mean = mean(Household.Job.Loss.Since.March.2020), sd = sd(Household.Job.Loss.Since.March.2020), max = max(Household.Job.Loss.Since.March.2020), min = min(Household.Job.Loss.Since.March.2020), med = median(Household.Job.Loss.Since.March.2020), corr = Corr(Household.Job.Loss.Since.March.2020, All.Adults))
+
+noJobloss_stats_grouped <- wrangled_dataframe %>% group_by(lowHigh_clinVisits) %>% mutate(No.Household.Job.Loss.Since.March.2020 = as.numeric(No.Household.Job.Loss.Since.March.2020)) %>% summarise(mean = mean(No.Household.Job.Loss.Since.March.2020), sd = sd(No.Household.Job.Loss.Since.March.2020), max = max(No.Household.Job.Loss.Since.March.2020), min = min(No.Household.Job.Loss.Since.March.2020), med = median(No.Household.Job.Loss.Since.March.2020), corr = Corr(No.Household.Job.Loss.Since.March.2020, All.Adults))
+
+totalCHCs_stats_grouped <- wrangled_dataframe %>% group_by(lowHigh_clinVisits) %>% mutate(Total.CHCs = as.numeric(Total.CHCs)) %>% summarise(mean = mean(Total.CHCs), sd = sd(Total.CHCs), max = max(Total.CHCs), min = min(Total.CHCs), med = median(Total.CHCs), corr = Corr(Total.CHCs, All.Adults))
+
+delivery_stats_grouped <- wrangled_dataframe %>% group_by(lowHigh_clinVisits) %>% mutate(Service.Delivery.Sites = as.numeric(Service.Delivery.Sites)) %>% summarise(mean = mean(Service.Delivery.Sites), sd = sd(Service.Delivery.Sites), max = max(Service.Delivery.Sites), min = min(Service.Delivery.Sites), med = median(Service.Delivery.Sites), corr = Corr(Service.Delivery.Sites, All.Adults))
+
+totalVisits_stats_grouped <- wrangled_dataframe %>% group_by(lowHigh_clinVisits) %>% mutate(Total.Visits = as.numeric(Total.Visits)) %>% summarise(mean = mean(Total.Visits), sd = sd(Total.Visits), max = max(Total.Visits), min = min(Total.Visits), med = median(Total.Visits), corr = Corr(Total.Visits, All.Adults))
+
+#Report these summary statistics in an easy-to-read tables with 'gt' package
+combined_stats <- rbind(CLinicalVisits_stats, VirtualVisits_stats, Adults_symptoms_stats, jobLoss_stats, noJobloss_stats, totalCHCs_stats, delivery_stats, totalVisits_stats)
+row.names(combined_stats) <- c("Clinical Visits", "Virtual Visits", "Adult Symptoms Reporting", "Job Loss", "No Job Loss", "Total Number of CHCs", "Number of Service Delivery Sites", "Total Visits" )
+gt_tbl <- head(combined_stats) %>% gt(rownames_to_stub = TRUE)
+stats_df <- gt_tbl %>%  tab_header(title = "Summary Stats for Numerical Variables", subtitle = "The mean, standard deviation, median, maximum, correlation, and minimum values are provided for these 3 variables")
+
+#Report these summary statistics in an easy-to-read tables with 'gt' package
+combined_stats_grouped <- rbind(CLinicalVisits_stats_grouped, VirtualVisits_stats_grouped, Adults_symptoms_stats_grouped, jobLoss_stats_grouped, noJobloss_stats_grouped, totalCHCs_stats_grouped, delivery_stats_grouped, totalVisits_stats_grouped)
+gt_tbl <- gt(combined_stats_grouped)
+stats_grp_df <- gt_tbl %>%  tab_header(title = "Summary Stats for Numerical Variables", subtitle = "The mean, standard deviation, median, maximum, correlation, and minimum values are provided for these 3 variables")
+```
+
+####  Stats Outputs 
+**Outputs (variables created) from the stats chunk above. 
+```{R}
+#outputs
+stats_df
+stats_grp_df
+```
 
 #### Visualizing
 
 ```{R}
-# your plot 1
-```
+ggplot(data = wrangled_dataframe, aes(x = All.Adults, y = prop_clinicalVisits, color = lowHigh_clinVisits)) + geom_point() + facet_grid(scales = "free_y") + labs(title = "Percent of Adults Reporting Symptoms vs the Proportion of Clinical Visits Made", 
+    x = "Percent of Adults Reporting Symptoms of Depression and Anxiety", y = "Proportion of Clinical Visits") + 
+    scale_x_continuous(limits = c(0.2, 0.6), breaks = seq(0.2, 
+        0.6, by = 0.05)) 
 
-Your discussion of plot 1
+```
+Plot 1 titled "Percent of Adults Reporting Symptoms vs the Proportion of Clinical Visits Made" looks at the relationship between the percent of adults who reported experiencing symptoms of depression and anxiety (on the x axis) and the proportion of clinical visits, calculated by dividing the raw number of visits in each state by the total number of visits in the U.S.A. The plot also facets the points by high and low levels of the number of clinical visits, to see how states with different levels (high and low) of clinical visits relate to symptom reporting. The plot shows that states with a low number of clinical visits (below the median) have a greater spread across the x axis (percent of adults reporting symptoms). In contrast, states with a high number of clinical visits (above the median) 
+
 
 ```{R}
-# your plot 2
-```
+library(viridis)
+library(RColorBrewer)
 
-Your discussion of plot 2
+ggplot(data = wrangled_dataframe, aes(x = as.numeric(Virtual.Visits), y = as.numeric(All.Adults))) +
+    stat_density2d(aes(fill = ..density..), geom = 'tile', contour = F) +
+  scale_fill_distiller(palette = 'RdYlBu') + labs(title = "Number of Virtual Visits vs % of Adults Reporting Symptoms", 
+    x = "# of Virutal Visits", y = "Percent of Adults Reporting Symptoms of Depression and Anxiety") + 
+    geom_jitter() + facet_grid(cols = vars(lowHigh_lossIncome), scales = "free_y") + theme(axis.title.y = element_text(size = rel(0.7), angle = 90))
+```
+**Plot number 2 is titled 'Number of Virtual Visits vs % of Adults Reporting Symptoms' and explores the relationship between the number of virtual physician-patient visits per state, and the percent of percent of adults reporting symptoms of depression and anxiety, faceted by high/low percent of households that experienced a loss in income. Based on the plot, states that have a high (above the median) percent of households that experienced a loss in income, have a higher number of virtual visits and a slightly higher percent of symptom reporting. In contrast, states with a low percent of households that experienced a loss in income, have fewer virtual visits and similar percents of symptom reporting. I faceted the plot by high/low levels households that experienced a loss in income, to see if there is a relationship between financial instability (indicated by higher percentage of households that experienced a loss in income) and access to technology (indicated by number of virtual visits). 
 
 ```{R}
-# your plot 3
+ggplot(data = wrangled_dataframe, aes(x = lowHigh_lossIncome, y = All.Adults, 
+    fill = lowHigh_lossIncome)) + geom_bar(stat = "summary", fun = mean) + labs(title = "Loss of Income vs Percent of Adults Reporting Symptoms", 
+    y = "% of Adults Reporting Symptoms of Depression/Anxiety", x = "High/Low Levels for Percentage of Loss of Income") + geom_errorbar(aes(width = 0.2), stat = "summary", fun.data = mean_se)
+
 ```
 
-Your discussion of plot 3
+**Plot 3 titled "Loss of Income vs Percent of Adults Reporting Symptoms" looks at the relationship between the percent of adults reporting symptoms of depression and anxiety, and levels of households that experienced a loss of employment income. The percentage of households that experienced a loss of employment income were binned into high and low levels based on the median value. Based on the plot and the standard error bars, states that have a high percentage of households that lost employment income  has a higher percent of adults who report symptoms of depression and anxiety. This relationship logically makes sense, as individuals who experience financial instability and/or have a low socioeconomic status (SES) are more exposed to stressors and environmentally predisposed to the development mental health disorders. 
 
-#### Concluding Remarks
-
-If any!
+#### Thank you! 
 
 
 
