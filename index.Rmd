@@ -36,6 +36,7 @@ MD_covid <- read.csv("~/project1/MD_covid.csv")
 ```{R}
 #install.packages("tidyr") 
 library(tidyverse)
+library(tidyr)
 longCHC <- pivot_longer(CHC_sites, 'Clinical.Visits')
 wideCHC <- longCHC %>% tidyr::pivot_wider(values_from = value)
 head(wideCHC)
@@ -77,6 +78,10 @@ NA_wrangled
 **The following chunk of code finds the mean, standard error, correlation between each variable and the percent of adults who reported experiencing depression and anxiety symptoms, maximum and minimum values for all numerical variables present in the data set. In addition, these statistical values were calculated when grouped by high/low number of clinical visits. The most interesting metric calculated was the correlation, which indicates the strength of a relationship between these numeric variables and the percent of adults experiencing depression and anxiety symptoms. The correlation values show that households that experienced job loss are strongly correlated with experiencing symptoms (correlation of 0.72). Similarly, households that did not experience job loss are also strongly, positively correlated to experiencing symptoms (correlation of 0.69). This observation may indicate that losing a job does not relate strongly to experiencing symptoms, since households who did not lose a job are also strongly correlated with experiencing symptoms. Number of virtual visits had a moderate positive correlation with the percent of adults experiencing depression and anxiety symptoms (correlation of 0.37), which may indicate a relationship between receiving health services virtually and mental health status.  **
 
 ```{R, error = T}
+library(tidyr)
+library(gtable)
+library(gt)
+
 #Using `dplyr`, create summary statistics (`mean, sd, var, n, quantile, min, max, n_distinct, cor`, etc) for each of your numeric variables. 
 
 Corr<-function(x,y){
